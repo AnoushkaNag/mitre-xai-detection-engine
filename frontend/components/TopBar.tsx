@@ -2,6 +2,7 @@
 
 import { Upload, Bell, Search, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/lib/authContext';
 
 interface TopBarProps {
   onUploadClick: () => void;
@@ -9,12 +10,16 @@ interface TopBarProps {
 }
 
 export default function TopBar({ onUploadClick, onLogout }: TopBarProps) {
-  const handleUploadClick = () => {
+  const { userRole } = useAuth();
+
+  const handleUploadClick = (e: React.MouseEvent) => {
+    e.preventDefault();
     console.log('🔴 [TopBar] Upload button clicked');
     onUploadClick();
   };
 
-  const handleLogoutClick = () => {
+  const handleLogoutClick = (e: React.MouseEvent) => {
+    e.preventDefault();
     console.log('🔴 [TopBar] Logout button clicked');
     onLogout();
   };
@@ -22,7 +27,14 @@ export default function TopBar({ onUploadClick, onLogout }: TopBarProps) {
   return (
     <header className="bg-dark-surface border-b border-dark-border px-6 py-4 flex items-center justify-between">
       <div>
-        <h2 className="text-2xl font-semibold text-white">Threat Detection Dashboard</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-semibold text-white">Threat Detection Dashboard</h2>
+          {userRole && (
+            <span className="px-3 py-1 bg-red-500/20 border border-red-500/50 rounded text-xs font-medium text-red-300">
+              {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+            </span>
+          )}
+        </div>
         <p className="text-sm text-dark-text/60 mt-1">Real-time monitoring and analysis</p>
       </div>
 
@@ -49,6 +61,7 @@ export default function TopBar({ onUploadClick, onLogout }: TopBarProps) {
 
         {/* Upload Button */}
         <motion.button
+          type="button"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleUploadClick}
@@ -60,13 +73,14 @@ export default function TopBar({ onUploadClick, onLogout }: TopBarProps) {
 
         {/* Logout Button */}
         <motion.button
+          type="button"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleLogoutClick}
-          className="flex items-center gap-2 px-4 py-2 bg-dark-surface-alt border border-dark-border rounded-lg text-dark-text hover:bg-dark-surface hover:border-dark-text/40 transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-dark-surface-alt border border-dark-border rounded-lg text-dark-text hover:bg-dark-surface hover:border-red-500/50 hover:text-red-400 transition-all"
         >
           <LogOut className="w-4 h-4" />
-          <span>Clear</span>
+          <span>Logout</span>
         </motion.button>
       </div>
     </header>

@@ -7,6 +7,9 @@ import AlertsList from '@/components/AlertsList';
 import AlertPanel from '@/components/AlertPanel';
 import ChatBox from '@/components/ChatBox';
 import UploadBox from '@/components/UploadBox';
+import LoginComponent from '@/components/Login';
+import { useAuth } from '@/lib/authContext';
+import { api } from '@/lib/api';
 
 interface Alert {
   id: string;
@@ -24,6 +27,18 @@ interface Alert {
 }
 
 export default function Home() {
+  const { isAuthenticated, logout } = useAuth();
+  
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <LoginComponent />;
+  }
+
+  return <Dashboard />;
+}
+
+function Dashboard() {
+  const { logout } = useAuth();
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [showUpload, setShowUpload] = useState(false);
@@ -36,31 +51,10 @@ export default function Home() {
     setError(null);
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      console.log('🔵 [handleUpload] Calling api.analyzeFile()...');
       
-      console.log('🔵 [handleUpload] FormData created, calling API...');
-      console.log('🔵 [handleUpload] Endpoint: http://localhost:8001/analyze');
+      const data = await api.analyzeFile(file);
       
-      const response = await fetch('http://localhost:8001/analyze', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          // Don't set Content-Type - browser will set it with boundary for multipart
-        },
-      });
-
-      console.log('🔵 [handleUpload] Response status:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ [handleUpload] API Error:', response.status, errorText);
-        const errorMsg = `API returned ${response.status}: ${errorText}`;
-        setError(errorMsg);
-        throw new Error(errorMsg);
-      }
-
-      const data = await response.json();
       console.log('🔵 [handleUpload] Response data:', data);
       console.log('🔵 [handleUpload] Alerts received:', data.alerts?.length || 0);
       
@@ -97,7 +91,6 @@ export default function Home() {
       setShowUpload(false);
       setSelectedAlert(null);
       console.log('✅ [handleUpload] SUCCESS - Alerts updated');
-      
     } catch (error) {
       console.error('❌ [handleUpload] FAILED:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);

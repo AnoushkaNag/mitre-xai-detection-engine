@@ -12,12 +12,16 @@ import pandas as pd
 import shap
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from typing import Optional
+
+from auth import authenticate_user, create_access_token, get_current_user, CurrentUser, LoginRequest, TokenResponse
+from file_extraction import extract_from_file, validate_extracted_data
 
 # ============================================================================
 # SETUP & INITIALIZATION
@@ -287,22 +291,73 @@ async def health():
     }
 
 
+@app.post("/login")
+async def login(request: LoginRequest):
+    """
+    Authenticate user and return JWT token
+    
+    Demo users:
+    - admin / admin123
+    - analyst / analyst123
+    - viewer / viewer123
+    """
+    print(f"🔐 [/login] Login attempt for user: {request.username}")
+    
+    user = authenticate_user(request.username, request.password)
+    if not user:
+        print(f"❌ [/login] Authentication failed for user: {request.username}")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password"
+        )
+    
+    token = create_access_token(user["username"], user["role"])
+    print(f"✅ [/login] Token generated for {request.username} (role: {user['role']})")
+    
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user_role=user["role"],
+        expires_in=24 * 60 * 60  # 24 hours in seconds
+    )
+
+
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
+async def analyze(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+):
     """
     Analyze uploaded file for threat detection
     
-    Accepts: CSV or JSON with flexible column names
-    Returns: Array of alerts with predictions, SHAP explanations, and warnings
+    Accepts: Multiple file formats with flexible column names
+    Formats: CSV, JSON, Excel, Parquet, TSV, Feather, HDF5, NDJSON
     
-    Flexible column mapping:
-    - dur: duration, time, duration_sec, session_duration
-    - sbytes: src_bytes, source_bytes, bytes_sent, outgoing_bytes
-    - dbytes: dst_bytes, destination_bytes, bytes_received, incoming_bytes
-    - service: protocol, proto, protocol_name, app
-    - state: connection_state, status, conn_state, connection_status
+    Returns: Array of alerts with predictions, SHAP explanations, and warnings
+    Optional: Bearer token for RBAC (demo mode allows unauthenticated access)
     """
     print(f"\n🔵 [/analyze] REQUEST - File: {file.filename}, Size: {file.size}")
+    
+    # Extract token from header (optional for demo)
+    token = None
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+    
+    # Verify user has 'analyze' permission (if token provided)
+    try:
+        if token:
+            current_user = get_current_user(token)
+            if "analyze" not in current_user.permissions:
+                print(f"❌ [/analyze] User {current_user.username} lacks 'analyze' permission")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Permission denied: 'analyze' required"
+                )
+            print(f"✅ [/analyze] User {current_user.username} authorized")
+    except Exception as e:
+        print(f"⚠️  [/analyze] Token verification failed (demo mode): {str(e)}")
     
     if not file.filename:
         print("❌ [/analyze] No file provided")
@@ -312,26 +367,30 @@ async def analyze(file: UploadFile = File(...)):
         # Read file
         contents = await file.read()
         print(f"🔵 [/analyze] File read: {len(contents)} bytes")
-
-        if file.filename.endswith(".csv"):
-            df = pd.read_csv(io.StringIO(contents.decode()))
-            print(f"🔵 [/analyze] CSV loaded: {df.shape}")
-        elif file.filename.endswith(".json"):
-            df = pd.read_json(io.StringIO(contents.decode()))
-            print(f"🔵 [/analyze] JSON loaded: {df.shape}")
-        else:
-            print(f"❌ [/analyze] Unsupported format: {file.filename}")
-            raise HTTPException(
-                status_code=400,
-                detail="Unsupported file format. Use CSV or JSON.",
-            )
+        
+        # Extract data from file using flexible extraction
+        print(f"🔵 [/analyze] Extracting data from {file.filename}...")
+        df, detected_format, extraction_warnings = extract_from_file(file.filename, contents)
+        print(f"🔵 [/analyze] Detected format: {detected_format}, Shape: {df.shape}")
+        
+        # Validate extracted data
+        is_valid, validation_warnings = validate_extracted_data(df)
+        if not is_valid and df.empty:
+            print(f"❌ [/analyze] Invalid data after extraction")
+            raise HTTPException(status_code=400, detail="No valid data in file")
+        
+        # Combine extraction and validation warnings
+        all_warnings = extraction_warnings + validation_warnings
 
         # Apply flexible column mapping and normalization
         print("🔵 [/analyze] Applying column mapping and normalization...")
-        df, warnings = preprocess_with_mapping(df)
-        print(f"🔵 [/analyze] Mapping complete with {len(warnings)} warnings")
-        for warning in warnings:
+        df, mapping_warnings = preprocess_with_mapping(df)
+        print(f"🔵 [/analyze] Mapping complete with {len(mapping_warnings)} warnings")
+        for warning in mapping_warnings:
             print(f"⚠️  [/analyze] WARNING: {warning}")
+        
+        # Combine all warnings
+        all_warnings.extend(mapping_warnings)
 
         # Preprocess
         print("🔵 [/analyze] Preprocessing data...")
@@ -426,14 +485,15 @@ async def analyze(file: UploadFile = File(...)):
             print(f"🔵 [/analyze] Alert {idx} added: {alert['prediction']} ({risk})")
 
         print(f"✅ [/analyze] Generated {len(alerts)} alerts from {len(predictions)} total rows")
-        print(f"✅ [/analyze] Response body: {{status: 'success', alerts: [{len(alerts)} items], warnings: [{len(warnings)} items]}}")
+        print(f"✅ [/analyze] Response body: {{status: 'success', alerts: [{len(alerts)} items], warnings: [{len(all_warnings)} items]}}")
         
         return {
             "status": "success",
             "total": len(alerts),
             "file": file.filename,
+            "detected_format": detected_format,
             "alerts": alerts,
-            "warnings": warnings,
+            "warnings": all_warnings,
         }
 
     except HTTPException:
@@ -444,13 +504,37 @@ async def analyze(file: UploadFile = File(...)):
 
 
 @app.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    authorization: Optional[str] = Header(None)
+):
     """
     Threat intelligence Q&A endpoint
+    Requires 'analyze' or 'read' permission
     
     Accepts: {message: str, alert: dict}
     Returns: {response: str}
     """
+    # Extract and verify token (optional for demo)
+    token = None
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+    
+    try:
+        if token:
+            current_user = get_current_user(token)
+            if "read" not in current_user.permissions and "analyze" not in current_user.permissions:
+                print(f"❌ [/chat] User {current_user.username} lacks read/analyze permission")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Permission denied: 'read' or 'analyze' required"
+                )
+            print(f"✅ [/chat] User {current_user.username} authorized")
+    except Exception as e:
+        print(f"⚠️  [/chat] Token verification failed (demo mode): {str(e)}")
+    
     print(f"\n🟡 [/chat] REQUEST - Message: {request.message}")
     
     message = request.message.lower()

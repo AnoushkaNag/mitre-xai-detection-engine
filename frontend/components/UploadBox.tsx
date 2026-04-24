@@ -32,9 +32,8 @@ export default function UploadBox({ onUpload, isLoading, onClose }: UploadBoxPro
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      if (file.type === 'text/csv' || file.type === 'application/json' || file.name.endsWith('.parquet')) {
-        handleFileSelect(file);
-      }
+      // Accept any file type for flexible extraction
+      handleFileSelect(file);
     }
   };
 
@@ -110,7 +109,7 @@ export default function UploadBox({ onUpload, isLoading, onClose }: UploadBoxPro
               type="file"
               onChange={handleInputChange}
               className="absolute inset-0 opacity-0 cursor-pointer"
-              accept=".csv,.json,.parquet"
+              accept="*/*"
               disabled={isLoading}
             />
 
@@ -134,7 +133,9 @@ export default function UploadBox({ onUpload, isLoading, onClose }: UploadBoxPro
               <h3 className="text-lg font-semibold text-white mb-1">
                 {isLoading ? 'Uploading...' : 'Drop file here or click'}
               </h3>
-              <p className="text-sm text-dark-text/60">Supports CSV, JSON, or Parquet files</p>
+              <p className="text-sm text-dark-text/60">
+                Supports: CSV, JSON, Excel, Parquet, TSV, Feather, HDF5, NDJSON
+              </p>
               {uploadedFile && (
                 <p className="text-xs text-dark-text/40 mt-2">{uploadedFile.name}</p>
               )}
@@ -143,6 +144,7 @@ export default function UploadBox({ onUpload, isLoading, onClose }: UploadBoxPro
             {/* Close Button */}
             {!isLoading && (
               <motion.button
+                type="button"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={onClose}
