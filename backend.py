@@ -143,6 +143,114 @@ def load_model():
 
 
 # ============================================================================
+# COLUMN MAPPING & NORMALIZATION
+# ============================================================================
+
+# Flexible column mapping - handles alternative column names
+COLUMN_MAPPING = {
+    "dur": ["dur", "duration", "time", "duration_sec", "session_duration"],
+    "sbytes": ["sbytes", "src_bytes", "source_bytes", "bytes_sent", "outgoing_bytes"],
+    "dbytes": ["dbytes", "dst_bytes", "destination_bytes", "bytes_received", "incoming_bytes"],
+    "service": ["service", "protocol", "proto", "protocol_name", "app"],
+    "state": ["state", "connection_state", "status", "conn_state", "connection_status"]
+}
+
+def normalize_columns(df):
+    """
+    Normalize and map column names to standard format
+    
+    Returns: (normalized_df, mapping_log, warnings)
+    """
+    print("🔵 [normalize_columns] Original columns:", list(df.columns))
+    
+    # Step 1: Lowercase and strip whitespace
+    df_normalized = df.copy()
+    df_normalized.columns = [col.lower().strip() for col in df_normalized.columns]
+    print(f"🔵 [normalize_columns] After normalization: {list(df_normalized.columns)}")
+    
+    mapping_log = {}
+    warnings = []
+    
+    # Step 2: Map alternative column names to standard names
+    for standard_name, aliases in COLUMN_MAPPING.items():
+        found = False
+        for alias in aliases:
+            if alias in df_normalized.columns:
+                if alias != standard_name:
+                    print(f"🔵 [normalize_columns] Mapping '{alias}' → '{standard_name}'")
+                    df_normalized.rename(columns={alias: standard_name}, inplace=True)
+                    mapping_log[alias] = standard_name
+                found = True
+                break
+        
+        if not found:
+            print(f"⚠️  [normalize_columns] Column '{standard_name}' not found (will use default)")
+            warnings.append(f"Missing '{standard_name}' column, default value will be used")
+    
+    print(f"🔵 [normalize_columns] After mapping: {list(df_normalized.columns)}")
+    print(f"🔵 [normalize_columns] Mapping log: {mapping_log}")
+    print(f"🔵 [normalize_columns] Warnings: {warnings}")
+    
+    return df_normalized, mapping_log, warnings
+
+def fill_missing_columns(df):
+    """
+    Fill missing required columns with defaults
+    
+    Numeric columns: 0
+    Categorical columns: "unknown"
+    """
+    print("🔵 [fill_missing_columns] Checking for missing columns...")
+    
+    required = ["dur", "sbytes", "dbytes", "service", "state"]
+    defaults = {
+        "dur": 0,
+        "sbytes": 0,
+        "dbytes": 0,
+        "service": "unknown",
+        "state": "unknown"
+    }
+    
+    missing_filled = []
+    for col in required:
+        if col not in df.columns:
+            print(f"🔵 [fill_missing_columns] Filling missing '{col}' with default: {defaults[col]}")
+            df[col] = defaults[col]
+            missing_filled.append(col)
+    
+    if missing_filled:
+        print(f"🔵 [fill_missing_columns] Filled {len(missing_filled)} missing columns: {missing_filled}")
+    else:
+        print(f"🔵 [fill_missing_columns] All required columns present")
+    
+    return df, missing_filled
+
+def preprocess_with_mapping(df):
+    """
+    Complete preprocessing pipeline with flexible column mapping
+    
+    Returns: (processed_df, warnings)
+    """
+    warnings = []
+    
+    # Step 1: Normalize column names
+    df, mapping_log, norm_warnings = normalize_columns(df)
+    warnings.extend(norm_warnings)
+    
+    # Step 2: Fill missing columns
+    df, missing_filled = fill_missing_columns(df)
+    if missing_filled:
+        for col in missing_filled:
+            warnings.append(f"Column '{col}' was missing and filled with default value")
+    
+    # Step 3: Ensure we have exactly the columns we need
+    required = ["dur", "sbytes", "dbytes", "service", "state"]
+    df = df[required].copy()
+    print(f"✅ [preprocess_with_mapping] Final dataframe: {df.shape}, columns: {list(df.columns)}")
+    
+    return df, warnings
+
+# ============================================================================
 # PREPROCESSING FUNCTIONS
 # ============================================================================
 
@@ -184,8 +292,15 @@ async def analyze(file: UploadFile = File(...)):
     """
     Analyze uploaded file for threat detection
     
-    Accepts: CSV or JSON
-    Returns: Array of alerts with predictions and SHAP explanations
+    Accepts: CSV or JSON with flexible column names
+    Returns: Array of alerts with predictions, SHAP explanations, and warnings
+    
+    Flexible column mapping:
+    - dur: duration, time, duration_sec, session_duration
+    - sbytes: src_bytes, source_bytes, bytes_sent, outgoing_bytes
+    - dbytes: dst_bytes, destination_bytes, bytes_received, incoming_bytes
+    - service: protocol, proto, protocol_name, app
+    - state: connection_state, status, conn_state, connection_status
     """
     print(f"\n🔵 [/analyze] REQUEST - File: {file.filename}, Size: {file.size}")
     
@@ -211,15 +326,12 @@ async def analyze(file: UploadFile = File(...)):
                 detail="Unsupported file format. Use CSV or JSON.",
             )
 
-        # Validate required columns
-        required = ["dur", "sbytes", "dbytes", "service", "state"]
-        missing = [col for col in required if col not in df.columns]
-        if missing:
-            print(f"❌ [/analyze] Missing columns: {missing}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Missing required columns: {', '.join(missing)}",
-            )
+        # Apply flexible column mapping and normalization
+        print("🔵 [/analyze] Applying column mapping and normalization...")
+        df, warnings = preprocess_with_mapping(df)
+        print(f"🔵 [/analyze] Mapping complete with {len(warnings)} warnings")
+        for warning in warnings:
+            print(f"⚠️  [/analyze] WARNING: {warning}")
 
         # Preprocess
         print("🔵 [/analyze] Preprocessing data...")
@@ -252,7 +364,11 @@ async def analyze(file: UploadFile = File(...)):
             # Normal traffic (pred=0) has low risk, attack traffic (pred=1) has high risk
 
             # Get top 5 SHAP features
-            shap_val = shap_values[idx]
+            # shap_values shape is (samples, features, classes)
+            # Extract SHAP values for predicted class
+            shap_val_2d = shap_values[idx]  # Shape: (features, classes)
+            shap_val = shap_val_2d[:, pred]  # Shape: (features,) - get values for predicted class
+            
             top_indices = np.argsort(np.abs(shap_val))[-5:][::-1]
 
             explanation = []
@@ -310,12 +426,14 @@ async def analyze(file: UploadFile = File(...)):
             print(f"🔵 [/analyze] Alert {idx} added: {alert['prediction']} ({risk})")
 
         print(f"✅ [/analyze] Generated {len(alerts)} alerts from {len(predictions)} total rows")
-        print(f"✅ [/analyze] Response body: {{status: 'success', alerts: [{len(alerts)} items]}}")
+        print(f"✅ [/analyze] Response body: {{status: 'success', alerts: [{len(alerts)} items], warnings: [{len(warnings)} items]}}")
+        
         return {
             "status": "success",
             "total": len(alerts),
             "file": file.filename,
             "alerts": alerts,
+            "warnings": warnings,
         }
 
     except HTTPException:
