@@ -60,13 +60,13 @@ class ThreatDetectionAPI {
     return headers;
   }
 
-  private getAuthHeader() {
+  private getAuthHeader(): Record<string, string> {
     if (this.token) {
       return {
         'Authorization': `Bearer ${this.token}`,
       };
     }
-    return {};
+    return {} as Record<string, string>;
   }
 
   /**
