@@ -24,6 +24,13 @@ export default function TopBar({ onUploadClick, onLogout }: TopBarProps) {
     onLogout();
   };
 
+  const handleNotificationClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log('🔔 [TopBar] Notification bell clicked');
+    // TODO: Implement notification panel in future
+    alert('Notifications: No new alerts at this time');
+  };
+
   return (
     <header className="bg-dark-surface border-b border-dark-border px-6 py-4 flex items-center justify-between">
       <div>
@@ -51,9 +58,10 @@ export default function TopBar({ onUploadClick, onLogout }: TopBarProps) {
 
         {/* Notifications */}
         <motion.button
+          onClick={handleNotificationClick}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="p-2 rounded-lg hover:bg-dark-surface-alt transition-colors relative"
+          className="p-2 rounded-lg hover:bg-dark-surface-alt transition-colors relative cursor-pointer"
         >
           <Bell className="w-5 h-5 text-dark-text/80" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>

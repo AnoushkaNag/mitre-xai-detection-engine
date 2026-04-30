@@ -105,28 +105,49 @@ class ThreatDetectionAPI {
    * Upload file for analysis
    */
   async analyzeFile(file: File): Promise<AnalyzeResponse> {
-    console.log('🔵 [API] Uploading file:', file.name);
+    console.log('🔵 [API] Uploading file:', file.name, 'Size:', Math.round(file.size / 1024), 'KB');
     
     const formData = new FormData();
     formData.append('file', file);
 
     const headers = this.getAuthHeader();
 
-    const response = await fetch(`${API_BASE_URL}/analyze`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    // Create abort controller with timeout (30 seconds - backend should respond within 5s with SHAP disabled)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+      console.error('❌ [API] Upload timeout - request took too long (>30s)');
+    }, 30000); // 30 seconds timeout (reduced from 120s)
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('❌ [API] Analysis failed:', error);
-      throw new Error(`Analysis failed: ${response.status} - ${error}`);
+    try {
+      console.log('🔵 [API] Sending request to /analyze');
+      const response = await fetch(`${API_BASE_URL}/analyze`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+
+      console.log('🔵 [API] Response received, status:', response.status);
+      
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('❌ [API] Analysis failed:', error);
+        throw new Error(`Analysis failed: ${response.status} - ${error}`);
+      }
+
+      const data: AnalyzeResponse = await response.json();
+      console.log('✅ [API] Analysis complete:', data.total, 'alerts');
+      console.log('✅ [API] Alert details:', data.alerts);
+      return data;
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        throw new Error('Upload timeout: The analysis took too long (>30s). Please try with a smaller file.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const data: AnalyzeResponse = await response.json();
-    console.log('✅ [API] Analysis complete:', data.total, 'alerts');
-    return data;
   }
 
   /**

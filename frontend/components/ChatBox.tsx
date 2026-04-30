@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, MessageCircle } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -50,27 +51,11 @@ export default function ChatBox({ alert }: ChatBoxProps) {
     setIsLoading(true);
 
     try {
-      console.log('🟡 [ChatBox] Calling API endpoint: http://localhost:8001/chat');
+      console.log('🟡 [ChatBox] Sending message via api.sendMessage()');
       console.log('🟡 [ChatBox] Payload:', { message: inputText, alert });
 
-      const response = await fetch('http://localhost:8001/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: inputText,
-          alert: alert || null,
-        }),
-      });
+      const data = await api.sendMessage(inputText, alert || undefined);
 
-      console.log('🟡 [ChatBox] Response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ [ChatBox] API Error:', response.status, errorText);
-        throw new Error(`API returned ${response.status}`);
-      }
-
-      const data = await response.json();
       console.log('🟡 [ChatBox] Response data:', data);
 
       const assistantMessage: Message = {

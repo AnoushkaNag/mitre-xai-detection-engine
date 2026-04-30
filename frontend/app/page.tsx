@@ -63,7 +63,9 @@ function Dashboard() {
         const errorMsg = 'Invalid response format: alerts should be an array';
         console.error('❌ [handleUpload]', errorMsg);
         setError(errorMsg);
-        throw new Error(errorMsg);
+        setAlerts([]);  // Clear any previous alerts
+        setIsLoading(false);
+        return;
       }
 
       // Convert backend format to frontend Alert format
@@ -90,14 +92,18 @@ function Dashboard() {
       setAlerts(convertedAlerts);
       setShowUpload(false);
       setSelectedAlert(null);
-      console.log('✅ [handleUpload] SUCCESS - Alerts updated');
+      setError(null);  // Ensure error is cleared
+      console.log('✅ [handleUpload] SUCCESS - Alerts updated, UI ready for interaction');
     } catch (error) {
       console.error('❌ [handleUpload] FAILED:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       setError(`Upload failed: ${errorMessage}`);
+      setAlerts([]);  // Clear alerts on error
+      setSelectedAlert(null);  // Clear selection on error
+      console.log('🔵 [handleUpload] UI state reset after error, buttons ready for interaction');
     } finally {
       setIsLoading(false);
-      console.log('🔵 [handleUpload] END');
+      console.log('🔵 [handleUpload] END - isLoading reset to false');
     }
   };
 
@@ -150,18 +156,21 @@ function Dashboard() {
   ];
 
   const handleLogout = () => {
-    console.log('🔴 [handleLogout] Clearing all state');
+    console.log('🔴 [handleLogout] Starting logout');
+    console.log('🔴 [handleLogout] Clearing local state');
     setAlerts([]);
     setSelectedAlert(null);
     setError(null);
     setShowUpload(false);
-    console.log('✅ [handleLogout] State cleared');
+    console.log('🔴 [handleLogout] Calling auth.logout()');
+    logout();
+    console.log('✅ [handleLogout] Logout complete');
   };
 
   return (
     <div className="flex h-screen bg-dark-bg overflow-hidden">
       {/* Sidebar */}
-      <Sidebar />
+      <Sidebar onLogout={handleLogout} />
 
       {/* Main Content */}
       <div className="flex flex-col flex-1">

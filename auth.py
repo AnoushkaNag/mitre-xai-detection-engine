@@ -8,7 +8,6 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
 from pydantic import BaseModel
 
 # Secret key for JWT tokens (in production, use environment variable)

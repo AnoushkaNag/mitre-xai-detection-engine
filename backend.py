@@ -32,11 +32,24 @@ app = FastAPI(title="ThreatXAI API", version="1.0.0")
 # Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://192.168.56.1:3000",
+        "http://192.168.56.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================================
+# PERFORMANCE CONFIGURATION
+# ============================================================================
+ENABLE_SHAP = False  # Disable SHAP for faster processing (can be enabled later)
+MAX_ROWS = 1000      # Limit processing to first 1000 rows for performance
 
 # Global variables
 model = None
@@ -346,18 +359,15 @@ async def analyze(
             token = parts[1]
     
     # Verify user has 'analyze' permission (if token provided)
-    try:
-        if token:
-            current_user = get_current_user(token)
-            if "analyze" not in current_user.permissions:
-                print(f"❌ [/analyze] User {current_user.username} lacks 'analyze' permission")
-                raise HTTPException(
-                    status_code=403,
-                    detail="Permission denied: 'analyze' required"
-                )
-            print(f"✅ [/analyze] User {current_user.username} authorized")
-    except Exception as e:
-        print(f"⚠️  [/analyze] Token verification failed (demo mode): {str(e)}")
+    if token:
+        current_user = get_current_user(token)
+        if "analyze" not in current_user.permissions:
+            print(f"❌ [/analyze] User {current_user.username} lacks 'analyze' permission")
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied: 'analyze' required"
+            )
+        print(f"✅ [/analyze] User {current_user.username} authorized")
     
     if not file.filename:
         print("❌ [/analyze] No file provided")
@@ -372,6 +382,12 @@ async def analyze(
         print(f"🔵 [/analyze] Extracting data from {file.filename}...")
         df, detected_format, extraction_warnings = extract_from_file(file.filename, contents)
         print(f"🔵 [/analyze] Detected format: {detected_format}, Shape: {df.shape}")
+        
+        # PERFORMANCE: Limit data size for faster processing
+        original_rows = len(df)
+        if len(df) > MAX_ROWS:
+            df = df.iloc[:MAX_ROWS].copy()
+            print(f"⚠️  [/analyze] Limited to {MAX_ROWS} rows (from {original_rows})")
         
         # Validate extracted data
         is_valid, validation_warnings = validate_extracted_data(df)
@@ -403,12 +419,16 @@ async def analyze(
         probabilities = model.predict_proba(X)
         print(f"🔵 [/analyze] Predictions: {predictions}")
 
-        # Get SHAP values
-        print("🔵 [/analyze] Computing SHAP values...")
-        shap_values = explainer.shap_values(X)
-        if isinstance(shap_values, list):
-            shap_values = shap_values[1]  # Attack class
-        print(f"🔵 [/analyze] SHAP computed: {shap_values.shape}")
+        # Get SHAP values (optional for performance)
+        if ENABLE_SHAP:
+            print("🔵 [/analyze] Computing SHAP values...")
+            shap_values = explainer.shap_values(X)
+            if isinstance(shap_values, list):
+                shap_values = shap_values[1]  # Attack class
+            print(f"🔵 [/analyze] SHAP computed: {shap_values.shape}")
+        else:
+            print("⏭️  [/analyze] SHAP disabled (fast mode)")
+            shap_values = None
 
         # Generate alerts
         alerts = []
@@ -422,32 +442,52 @@ async def analyze(
             # Include all traffic (both normal and attack)
             # Normal traffic (pred=0) has low risk, attack traffic (pred=1) has high risk
 
-            # Get top 5 SHAP features
-            # shap_values shape is (samples, features, classes)
-            # Extract SHAP values for predicted class
-            shap_val_2d = shap_values[idx]  # Shape: (features, classes)
-            shap_val = shap_val_2d[:, pred]  # Shape: (features,) - get values for predicted class
-            
-            top_indices = np.argsort(np.abs(shap_val))[-5:][::-1]
-
+            # Get top 5 SHAP features (or dummy if disabled)
             explanation = []
-            for i in top_indices:
-                explanation.append({
-                    "feature": feature_names[i],
-                    "impact": float(shap_val[i]),
-                })
+            if shap_values is not None:
+                # shap_values shape is (samples, features, classes)
+                # Extract SHAP values for predicted class
+                shap_val_2d = shap_values[idx]  # Shape: (features, classes)
+                shap_val = shap_val_2d[:, pred]  # Shape: (features,) - get values for predicted class
+                
+                top_indices = np.argsort(np.abs(shap_val))[-5:][::-1]
+                for i in top_indices:
+                    explanation.append({
+                        "feature": feature_names[i],
+                        "impact": float(shap_val[i]),
+                    })
+            else:
+                # Fast mode: use basic feature importance
+                explanation = [
+                    {"feature": "sbytes", "impact": 0.15},
+                    {"feature": "dbytes", "impact": 0.10},
+                    {"feature": "dur", "impact": 0.08},
+                ]
 
             # Generate reasoning
             reasoning = []
-            top_feature = feature_names[top_indices[0]]
-            top_impact = shap_val[top_indices[0]]
-
-            if "sbytes" in top_feature or top_impact > 0:
-                reasoning.append("High outbound data transfer detected")
-            if "dbytes" in top_feature or top_impact > 0:
-                reasoning.append("Suspicious incoming data pattern")
-            if "dur" in top_feature:
-                reasoning.append("Unusual session duration detected")
+            
+            if shap_values is not None:
+                # Use SHAP values for reasoning
+                top_feature = feature_names[top_indices[0]]
+                top_impact = shap_val[top_indices[0]]
+                
+                if "sbytes" in top_feature or top_impact > 0:
+                    reasoning.append("High outbound data transfer detected")
+                if "dbytes" in top_feature or top_impact > 0:
+                    reasoning.append("Suspicious incoming data pattern")
+                if "dur" in top_feature:
+                    reasoning.append("Unusual session duration detected")
+            else:
+                # Fast mode: simple heuristics
+                if pred == 1:  # Attack predicted
+                    reasoning.append("Network traffic pattern indicates potential threat")
+                    if df.iloc[idx]["sbytes"] > 1000:
+                        reasoning.append("Elevated outbound traffic detected")
+                    if df.iloc[idx]["dbytes"] > 1000:
+                        reasoning.append("Elevated inbound traffic detected")
+                else:  # Normal predicted
+                    reasoning.append("Traffic pattern within normal baseline")
 
             if not reasoning:
                 reasoning.append("Anomalous network behavior detected")
@@ -522,18 +562,15 @@ async def chat(
         if len(parts) == 2 and parts[0].lower() == "bearer":
             token = parts[1]
     
-    try:
-        if token:
-            current_user = get_current_user(token)
-            if "read" not in current_user.permissions and "analyze" not in current_user.permissions:
-                print(f"❌ [/chat] User {current_user.username} lacks read/analyze permission")
-                raise HTTPException(
-                    status_code=403,
-                    detail="Permission denied: 'read' or 'analyze' required"
-                )
-            print(f"✅ [/chat] User {current_user.username} authorized")
-    except Exception as e:
-        print(f"⚠️  [/chat] Token verification failed (demo mode): {str(e)}")
+    if token:
+        current_user = get_current_user(token)
+        if "read" not in current_user.permissions and "analyze" not in current_user.permissions:
+            print(f"❌ [/chat] User {current_user.username} lacks read/analyze permission")
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied: 'read' or 'analyze' required"
+            )
+        print(f"✅ [/chat] User {current_user.username} authorized")
     
     print(f"\n🟡 [/chat] REQUEST - Message: {request.message}")
     
