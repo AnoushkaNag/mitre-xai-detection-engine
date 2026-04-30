@@ -7,6 +7,11 @@ Tests RBAC, file upload, button workflow, and all features
 import requests
 import json
 import sys
+import io
+
+# Force UTF-8 encoding for output
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 BASE_URL = "http://localhost:8001"
 FRONTEND_URL = "http://localhost:3000"
@@ -19,13 +24,13 @@ class TestResults:
     
     def add_pass(self, name):
         self.passed += 1
-        self.tests.append(("✅ PASS", name))
-        print(f"✅ {name}")
+        self.tests.append(("[PASS]", name))
+        print(f"[PASS] {name}")
     
     def add_fail(self, name, error):
         self.failed += 1
-        self.tests.append(("❌ FAIL", name, str(error)))
-        print(f"❌ {name}: {error}")
+        self.tests.append(("[FAIL]", name, str(error)))
+        print(f"[FAIL] {name}: {error}")
     
     def summary(self):
         print("\n" + "="*70)
