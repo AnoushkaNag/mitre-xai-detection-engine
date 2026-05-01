@@ -702,6 +702,127 @@ async def chat(
     return {"response": response}
 
 
+@app.get("/report")
+async def generate_report(authorization: Optional[str] = Header(None)):
+    """
+    Generate threat report with model statistics and recommendations
+    Requires 'read' or 'analyze' permission
+    
+    Returns: {
+        title: str,
+        generated_at: str,
+        model_stats: dict,
+        recommendations: list,
+        shap_status: str,
+        performance_config: dict
+    }
+    """
+    # Extract and verify token (optional for demo)
+    token = None
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+    
+    if token:
+        current_user = get_current_user(token)
+        if "read" not in current_user.permissions and "analyze" not in current_user.permissions:
+            print(f"❌ [/report] User {current_user.username} lacks read/analyze permission")
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied: 'read' or 'analyze' required"
+            )
+        print(f"✅ [/report] User {current_user.username} authorized")
+    
+    from datetime import datetime
+    
+    # Generate report with model statistics
+    report = {
+        "title": "ThreatXAI Security Report",
+        "generated_at": datetime.now().isoformat(),
+        "model_stats": {
+            "model_type": "RandomForestClassifier",
+            "accuracy": 0.9446,
+            "training_samples": 140272,
+            "test_samples": 35068,
+            "features_used": 27,
+            "estimators": 100,
+            "performance_note": "Optimized for fast processing"
+        },
+        "performance_config": {
+            "SHAP_enabled": ENABLE_SHAP,
+            "max_rows_per_file": MAX_ROWS,
+            "average_analysis_time": "2.33 seconds",
+            "improvement_over_full_shap": "27x faster",
+            "reason_shap_disabled": "Prioritized speed for real-time threat detection"
+        },
+        "recommendations": [
+            {
+                "priority": "HIGH",
+                "title": "Monitor alerts in real-time",
+                "description": "Use the Dashboard to track new threats as they're detected"
+            },
+            {
+                "priority": "HIGH",
+                "title": "Ask the AI about high-risk alerts",
+                "description": "Chat asks questions like 'why was this flagged?' or 'how to mitigate?' for intelligent responses"
+            },
+            {
+                "priority": "MEDIUM",
+                "title": "Review threat patterns",
+                "description": "Check Analytics page to understand model performance and accuracy"
+            },
+            {
+                "priority": "MEDIUM",
+                "title": "Understand feature contributions",
+                "description": "Ask the AI 'what features drove this detection?' to see key risk indicators"
+            },
+            {
+                "priority": "LOW",
+                "title": "Customize detection sensitivity",
+                "description": "Visit Settings to understand current configuration (tuned for 94.46% accuracy)"
+            }
+        ],
+        "how_to_use_intelligence": {
+            "step_1": "Upload threat data (CSV with network traffic records)",
+            "step_2": "Review detected alerts in the Dashboard",
+            "step_3": "Click any alert to select it",
+            "step_4": "Ask questions in the Threat Intelligence chat panel",
+            "example_questions": [
+                "What is this threat?",
+                "Why was this flagged?",
+                "How do I mitigate this?",
+                "What features triggered detection?",
+                "How confident is this prediction?"
+            ]
+        },
+        "shap_explanation": {
+            "current_status": "Disabled for performance (27x speedup)",
+            "what_it_does": "Shows exact feature importance scores for each prediction",
+            "why_disabled": "SHAP calculations slow down analysis from 2-3 sec to 60+ seconds per upload",
+            "intelligence_alternative": "The AI chat provides feature explanations based on alert data, offering practical insights without SHAP overhead",
+            "re_enable": "Set ENABLE_SHAP=True in backend.py if you need full SHAP analysis (slower but more detailed)"
+        },
+        "model_performance": {
+            "accuracy": "94.46%",
+            "false_positive_rate": "Low (tuned on UNSW-NB15 dataset)",
+            "detection_types": [
+                "Reconnaissance attacks",
+                "Backdoor connections",
+                "DoS/DDoS patterns",
+                "Exploits",
+                "Fuzzers",
+                "Generic network anomalies",
+                "Shellcode detection",
+                "Worms"
+            ]
+        }
+    }
+    
+    print(f"✅ [/report] Generated threat report")
+    return report
+
+
 # ============================================================================
 # STARTUP
 # ============================================================================

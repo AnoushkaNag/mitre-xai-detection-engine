@@ -45,6 +45,32 @@ function Dashboard() {
   const [showUpload, setShowUpload] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [report, setReport] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const handleGenerateReport = async () => {
+    console.log('🟢 [handleGenerateReport] Fetching threat report...');
+    setReportLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8001/report', {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to generate report');
+      
+      const reportData = await response.json();
+      console.log('🟢 [handleGenerateReport] Report generated successfully');
+      setReport(reportData);
+    } catch (err) {
+      console.log('🔴 [handleGenerateReport] Error:', err);
+      setError('Failed to generate report');
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   const handleUpload = async (file: File) => {
     console.log('🔵 [handleUpload] START - File selected:', file.name, 'Size:', file.size);
@@ -259,14 +285,97 @@ function Dashboard() {
               </div>
             </div>
           ) : activePage === 'reports' ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold text-white mb-4">Reports</h2>
-                <p className="text-dark-text/60">Generate custom threat reports</p>
-                <button className="mt-6 px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
-                  Generate Report
-                </button>
-              </div>
+            <div className="flex-1 overflow-auto">
+              {!report ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <h2 className="text-2xl font-bold text-white mb-4">Threat Report</h2>
+                    <p className="text-dark-text/60 mb-6">Generate a comprehensive security report with model statistics and recommendations</p>
+                    <button 
+                      onClick={handleGenerateReport}
+                      disabled={reportLoading}
+                      className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center gap-2 mx-auto"
+                    >
+                      {reportLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        'Generate Report'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white mb-2">{report.title}</h2>
+                    <p className="text-dark-text/60">Generated: {new Date(report.generated_at).toLocaleString()}</p>
+                  </div>
+
+                  <div className="bg-dark-surface rounded-lg p-6">
+                    <h3 className="text-xl font-semibold text-white mb-4">Model Statistics</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div><label className="text-dark-text/70">Type:</label> <span className="text-white">{report.model_stats.model_type}</span></div>
+                      <div><label className="text-dark-text/70">Accuracy:</label> <span className="text-green-400">{(report.model_stats.accuracy * 100).toFixed(2)}%</span></div>
+                      <div><label className="text-dark-text/70">Training Samples:</label> <span className="text-white">{report.model_stats.training_samples.toLocaleString()}</span></div>
+                      <div><label className="text-dark-text/70">Test Samples:</label> <span className="text-white">{report.model_stats.test_samples.toLocaleString()}</span></div>
+                      <div><label className="text-dark-text/70">Features:</label> <span className="text-white">{report.model_stats.features_used}</span></div>
+                      <div><label className="text-dark-text/70">Estimators:</label> <span className="text-white">{report.model_stats.estimators}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="bg-dark-surface rounded-lg p-6">
+                    <h3 className="text-xl font-semibold text-white mb-4">Performance Configuration</h3>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between">
+                        <label className="text-dark-text/70">SHAP Enabled:</label>
+                        <span className={report.performance_config.SHAP_enabled ? 'text-green-400' : 'text-red-400'}>
+                          {report.performance_config.SHAP_enabled ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <label className="text-dark-text/70">Max Rows:</label>
+                        <span className="text-white">{report.performance_config.max_rows_per_file.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <label className="text-dark-text/70">Avg Analysis Time:</label>
+                        <span className="text-white">{report.performance_config.average_analysis_time}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <label className="text-dark-text/70">Improvement:</label>
+                        <span className="text-yellow-400">{report.performance_config.improvement_over_full_shap}</span>
+                      </div>
+                      <p className="text-dark-text/60 mt-2 text-xs">{report.performance_config.reason_shap_disabled}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-dark-surface rounded-lg p-6">
+                    <h3 className="text-xl font-semibold text-white mb-4">Key Recommendations</h3>
+                    <div className="space-y-3">
+                      {report.recommendations.map((rec: any, idx: number) => (
+                        <div key={idx} className="flex gap-3">
+                          <div className={`px-3 py-1 rounded text-xs font-semibold ${rec.priority === 'HIGH' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
+                            {rec.priority}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-semibold text-white text-sm">{rec.title}</div>
+                            <div className="text-dark-text/70 text-xs">{rec.description}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setReport(null)}
+                    className="w-full px-4 py-2 bg-dark-surface hover:bg-dark-surface/80 text-white rounded-lg transition-colors"
+                  >
+                    Back to Report Generation
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center">
