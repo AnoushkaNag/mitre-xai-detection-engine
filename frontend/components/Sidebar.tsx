@@ -14,13 +14,19 @@ const navItems = [
 
 interface SidebarProps {
   onLogout?: () => void;
+  onNavigate?: (page: string) => void;
+  activePage?: string;
 }
 
-export default function Sidebar({ onLogout }: SidebarProps) {
+export default function Sidebar({ onLogout, onNavigate, activePage = 'dashboard' }: SidebarProps) {
   const { logout } = useAuth();
 
   const handleNavClick = (label: string) => {
-    console.log(`🔵 [Sidebar] Navigating to: ${label}`);
+    const page = label.toLowerCase();
+    console.log(`🔵 [Sidebar] Navigating to: ${page}`);
+    if (onNavigate) {
+      onNavigate(page);
+    }
   };
 
   const handleLogout = () => {
@@ -47,19 +53,28 @@ export default function Sidebar({ onLogout }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item, i) => (
-          <motion.button
-            key={item.label}
-            onClick={() => handleNavClick(item.label)}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-dark-text/80 hover:text-white hover:bg-dark-surface-alt transition-colors cursor-pointer group"
-          >
-            <item.icon className="w-5 h-5 group-hover:text-red-500 transition-colors" />
-            <span className="text-sm font-medium">{item.label}</span>
-          </motion.button>
-        ))}
+        {navItems.map((item, i) => {
+          const isActive = activePage === item.label.toLowerCase();
+          return (
+            <motion.button
+              key={item.label}
+              onClick={() => handleNavClick(item.label)}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer group ${
+                isActive
+                  ? 'bg-red-600/20 text-white border-l-2 border-red-500'
+                  : 'text-dark-text/80 hover:text-white hover:bg-dark-surface-alt'
+              }`}
+            >
+              <item.icon className={`w-5 h-5 transition-colors ${
+                isActive ? 'text-red-500' : 'group-hover:text-red-500'
+              }`} />
+              <span className="text-sm font-medium">{item.label}</span>
+            </motion.button>
+          );
+        })}
       </nav>
 
       {/* Footer */}

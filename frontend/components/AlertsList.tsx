@@ -25,6 +25,17 @@ interface AlertsListProps {
 }
 
 export default function AlertsList({ alerts, selectedAlert, onSelectAlert }: AlertsListProps) {
+  const handleSelectAlert = (alert: Alert) => {
+    console.log('🔷 [AlertsList] Alert clicked:', alert.id, alert.title);
+    console.log('🔷 [AlertsList] Alert details:', {
+      risk: alert.riskLevel,
+      confidence: alert.confidence,
+      service: alert.service,
+      state: alert.state,
+    });
+    onSelectAlert(alert);
+  };
+
   return (
     <div className="h-full flex flex-col bg-dark-surface/30 backdrop-blur-xs border border-dark-border rounded-xl overflow-hidden">
       {/* Header */}
@@ -45,7 +56,7 @@ export default function AlertsList({ alerts, selectedAlert, onSelectAlert }: Ale
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ delay: index * 0.05 }}
-                  onClick={() => onSelectAlert(alert)}
+                  onClick={() => handleSelectAlert(alert)}
                 >
                   <AlertCard
                     alert={alert}

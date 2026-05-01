@@ -39,6 +39,7 @@ export default function Home() {
 
 function Dashboard() {
   const { logout } = useAuth();
+  const [activePage, setActivePage] = useState<'dashboard' | 'threats' | 'analytics' | 'reports' | 'settings'>('dashboard');
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [showUpload, setShowUpload] = useState(false);
@@ -162,20 +163,28 @@ function Dashboard() {
     setSelectedAlert(null);
     setError(null);
     setShowUpload(false);
+    setActivePage('dashboard');
     console.log('🔴 [handleLogout] Calling auth.logout()');
     logout();
     console.log('✅ [handleLogout] Logout complete');
   };
 
+  const handleNavigate = (page: string) => {
+    console.log('🟢 [Navigation] Navigating to:', page);
+    setActivePage(page as any);
+    setSelectedAlert(null);
+    console.log('🟢 [Navigation] Page changed, alert selection cleared');
+  };
+
   return (
     <div className="flex h-screen bg-dark-bg overflow-hidden">
       {/* Sidebar */}
-      <Sidebar onLogout={handleLogout} />
+      <Sidebar onLogout={handleLogout} onNavigate={handleNavigate} activePage={activePage} />
 
       {/* Main Content */}
       <div className="flex flex-col flex-1">
         {/* Top Bar */}
-        <TopBar onUploadClick={() => setShowUpload(!showUpload)} onLogout={handleLogout} />
+        <TopBar onUploadClick={() => setShowUpload(!showUpload)} onLogout={handleLogout} isLoading={isLoading} />
 
         {/* Error Display */}
         {error && (
@@ -192,36 +201,86 @@ function Dashboard() {
 
         {/* Main Dashboard */}
         <div className="flex flex-1 overflow-hidden gap-4 p-4">
-          {/* Left: Alerts List */}
-          <div className="flex-1 min-w-0">
-            {showUpload ? (
-              <UploadBox 
-                onUpload={handleUpload} 
-                isLoading={isLoading}
-                onClose={() => setShowUpload(false)}
-              />
-            ) : (
-              <AlertsList
-                alerts={alerts}
-                selectedAlert={selectedAlert}
-                onSelectAlert={setSelectedAlert}
-              />
-            )}
-          </div>
+          {activePage === 'dashboard' ? (
+            <>
+              {/* Left: Alerts List */}
+              <div className="flex-1 min-w-0">
+                {showUpload ? (
+                  <UploadBox 
+                    onUpload={handleUpload} 
+                    isLoading={isLoading}
+                    onClose={() => setShowUpload(false)}
+                  />
+                ) : (
+                  <AlertsList
+                    alerts={alerts}
+                    selectedAlert={selectedAlert}
+                    onSelectAlert={setSelectedAlert}
+                  />
+                )}
+              </div>
 
-          {/* Right: Alert Detail Panel & Chat */}
-          <div className="w-96 flex flex-col gap-4 min-w-0">
-            {/* Alert Details Panel */}
-            {selectedAlert && (
-              <AlertPanel
-                alert={selectedAlert}
-                onClose={() => setSelectedAlert(null)}
-              />
-            )}
+              {/* Right: Alert Detail Panel & Chat */}
+              <div className="w-96 flex flex-col gap-4 min-w-0">
+                {/* Alert Details Panel */}
+                {selectedAlert && (
+                  <AlertPanel
+                    alert={selectedAlert}
+                    onClose={() => setSelectedAlert(null)}
+                  />
+                )}
 
-            {/* Chat Box */}
-            <ChatBox alert={selectedAlert} />
-          </div>
+                {/* Chat Box */}
+                <ChatBox alert={selectedAlert} />
+              </div>
+            </>
+          ) : activePage === 'threats' ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">Threat Dashboard</h2>
+                <p className="text-dark-text/60">{alerts.length} total alerts detected</p>
+                <div className="mt-6 bg-dark-surface rounded-lg p-6 inline-block">
+                  <p className="text-sm text-dark-text/80">High Risk: {alerts.filter(a => a.riskLevel === 'high').length}</p>
+                  <p className="text-sm text-dark-text/80">Medium Risk: {alerts.filter(a => a.riskLevel === 'medium').length}</p>
+                  <p className="text-sm text-dark-text/80">Low Risk: {alerts.filter(a => a.riskLevel === 'low').length}</p>
+                </div>
+              </div>
+            </div>
+          ) : activePage === 'analytics' ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">Analytics</h2>
+                <p className="text-dark-text/60">Model Performance: 94.46% accuracy</p>
+                <div className="mt-6 bg-dark-surface rounded-lg p-6 inline-block text-left text-sm">
+                  <p className="text-dark-text/80">Training Samples: 140,272</p>
+                  <p className="text-dark-text/80">Test Samples: 35,068</p>
+                  <p className="text-dark-text/80">Features Used: 27</p>
+                </div>
+              </div>
+            </div>
+          ) : activePage === 'reports' ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">Reports</h2>
+                <p className="text-dark-text/60">Generate custom threat reports</p>
+                <button className="mt-6 px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                  Generate Report
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">Settings</h2>
+                <p className="text-dark-text/60">Configure threat detection parameters</p>
+                <div className="mt-6 bg-dark-surface rounded-lg p-6 inline-block text-left text-sm space-y-3">
+                  <div><label className="text-dark-text/80">SHAP Enabled:</label> <span className="text-red-400">False</span></div>
+                  <div><label className="text-dark-text/80">Max Rows:</label> <span className="text-red-400">1000</span></div>
+                  <div><label className="text-dark-text/80">Model Accuracy:</label> <span className="text-green-400">94.46%</span></div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

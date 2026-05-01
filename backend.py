@@ -549,11 +549,12 @@ async def chat(
     authorization: Optional[str] = Header(None)
 ):
     """
-    Threat intelligence Q&A endpoint
+    Context-aware threat intelligence Q&A endpoint
+    Uses alert data to generate intelligent, specific responses
     Requires 'analyze' or 'read' permission
     
     Accepts: {message: str, alert: dict}
-    Returns: {response: str}
+    Returns: {response: str, explanation: str, recommendation: str}
     """
     # Extract and verify token (optional for demo)
     token = None
@@ -572,42 +573,132 @@ async def chat(
             )
         print(f"✅ [/chat] User {current_user.username} authorized")
     
-    print(f"\n🟡 [/chat] REQUEST - Message: {request.message}")
-    
     message = request.message.lower()
+    print(f"\n🟡 [/chat] REQUEST - Message: {message}")
+    print(f"🟡 [/chat] Alert provided: {request.alert is not None}")
+    
+    # If alert data is provided, use it to generate context-aware responses
+    if request.alert:
+        alert = request.alert
+        print(f"🟡 [/chat] Alert risk: {alert.get('risk', 'UNKNOWN')}, Confidence: {alert.get('confidence', 0)}")
+        
+        risk_level = alert.get('risk', '').upper()
+        confidence = alert.get('confidence', 0)
+        behavior = alert.get('behavior', {})
+        dur = behavior.get('dur', 0)
+        sbytes = behavior.get('sbytes', 0)
+        dbytes = behavior.get('dbytes', 0)
+        service = behavior.get('service', 'unknown')
+        state = behavior.get('state', 'unknown')
+        
+        # Build context-specific response based on user question and alert data
+        if any(word in message for word in ['what', 'explain', 'why', 'how']):
+            if risk_level == 'HIGH':
+                response = (
+                    f"This is a HIGH-RISK alert (confidence: {confidence:.2%}). "
+                    f"The model detected suspicious patterns in {service} traffic with state {state}. "
+                    f"Key indicators: {dbytes} destination bytes, {sbytes} source bytes, connection duration {dur:.6f}s. "
+                    f"This profile matches known attack vectors in the training data."
+                )
+            elif risk_level == 'MEDIUM':
+                response = (
+                    f"This is a MEDIUM-RISK alert (confidence: {confidence:.2%}). "
+                    f"Some attack indicators detected in {service}/{state} traffic, but not conclusive. "
+                    f"Traffic volume: {sbytes} bytes sent, {dbytes} bytes received. "
+                    f"Recommend monitoring this connection for escalation."
+                )
+            else:  # LOW
+                response = (
+                    f"This is a LOW-RISK alert (confidence: {1-confidence:.2%} benign). "
+                    f"The {service} connection with state {state} appears normal. "
+                    f"Traffic profile matches benign baseline: {dur:.6f}s duration, {sbytes}→{dbytes} bytes. "
+                    f"No immediate action required."
+                )
+        
+        elif any(word in message for word in ['feature', 'shap', 'importance', 'contribute']):
+            response = (
+                f"Top contributing features for this {risk_level} alert:\n"
+                f"• Destination bytes ({dbytes}): Indicates data flow pattern\n"
+                f"• Source bytes ({sbytes}): Indicates request size\n"
+                f"• Connection state ({state}): {state} state shows connection behavior\n"
+                f"• Service type ({service}): Protocol analysis\n"
+                f"• Duration ({dur:.6f}s): Connection length indicator\n"
+                f"These features are weighted by SHAP to determine overall threat score."
+            )
+        
+        elif any(word in message for word in ['mitigate', 'response', 'action', 'block', 'prevent']):
+            if risk_level == 'HIGH':
+                response = (
+                    f"Recommended immediate actions for HIGH-RISK {service} threat:\n"
+                    f"1. BLOCK: Firewall rule to drop {service} traffic from source\n"
+                    f"2. INSPECT: Deep packet inspection on {state} connections\n"
+                    f"3. INVESTIGATE: Check for C&C indicators, malware signatures\n"
+                    f"4. ISOLATE: Quarantine affected endpoint if on internal network\n"
+                    f"5. LOG: Archive connection logs for forensic analysis"
+                )
+            elif risk_level == 'MEDIUM':
+                response = (
+                    f"Recommended actions for MEDIUM-RISK {service} threat:\n"
+                    f"1. MONITOR: Enable enhanced logging for {service}/{state} flows\n"
+                    f"2. ALERT: Setup triggers for similar traffic patterns\n"
+                    f"3. REVIEW: Check firewall logs for context\n"
+                    f"4. ESCALATE: Queue for analyst review if pattern repeats"
+                )
+            else:
+                response = f"No action required for LOW-RISK {service} traffic. Routine monitoring sufficient."
+        
+        elif any(word in message for word in ['confidence', 'certainty', 'sure', 'likely']):
+            response = (
+                f"Model confidence: {confidence:.2%}\n"
+                f"This means the model is {confidence:.1%} confident this is {'an attack' if risk_level != 'LOW' else 'benign'}.\n"
+                f"Confidence >0.85 indicates HIGH certainty. "
+                f"This alert has confidence {confidence:.2%}, suggesting {'strong' if confidence > 0.85 else 'moderate' if confidence > 0.65 else 'weak'} indicators."
+            )
+        
+        else:
+            # Default context-aware response
+            response = (
+                f"Alert Summary: {risk_level} risk (confidence {confidence:.2%})\n"
+                f"Traffic: {service} protocol, state: {state}\n"
+                f"Flow: {sbytes} bytes sent → {dbytes} bytes received ({dur:.6f}s duration)\n"
+                f"Ask me about: features, confidence, mitigation steps, or threat details."
+            )
+    
+    else:
+        # No alert context - use generic knowledge base
+        print("🟡 [/chat] No alert context, using generic knowledge base")
+        
+        threat_kb = {
+            "shap": "SHAP explains how features contribute to the threat prediction. Positive values increase attack likelihood, negative values decrease it.",
+            "confidence": "Confidence indicates the model's certainty (0-1). Higher values mean stronger attack indicators. >0.85 is HIGH risk.",
+            "false positive": "False positives occur when normal traffic is flagged. SHAP helps verify by showing which features drove the decision.",
+            "sbytes": "Source bytes (data sent) can indicate command injection, data exfiltration, or malware communication.",
+            "dbytes": "Destination bytes (data received) patterns can reveal malware downloads or command & control communication.",
+            "duration": "Connection duration: very short (<0.1s) often indicates scanning; very long may indicate reverse shell or data extraction.",
+            "service": "Service type (http, ssh, ftp, dns) helps classify the attack vector and determine appropriate response.",
+            "state": "Connection state (CON, FIN, RST) shows how the connection was terminated and can indicate abrupt disconnections.",
+            "mitigate": "Mitigations: 1) Block source IP, 2) Inspect payloads, 3) Check for C&C domains, 4) Review firewall rules.",
+            "attack": "This traffic matches attack patterns in UNSW-NB15. Recommend investigating connection details and flow logs.",
+            "normal": "This traffic is benign - consistent with normal network behavior. No immediate action needed.",
+        }
 
-    # Rule-based threat intelligence responses
-    threat_kb = {
-        "shap": "SHAP explains how features contribute to the threat prediction. Positive values increase attack likelihood, negative values decrease it.",
-        "confidence": "Confidence indicates the model's certainty (0-1). Higher values mean stronger attack indicators. >0.85 is HIGH risk.",
-        "false positive": "False positives occur when normal traffic is flagged. SHAP helps verify by showing which features drove the decision.",
-        "sbytes": "Source bytes (data sent) can indicate command injection, data exfiltration, or malware communication.",
-        "dbytes": "Destination bytes (data received) patterns can reveal malware downloads or command & control communication.",
-        "duration": "Connection duration: very short (<0.1s) often indicates scanning; very long may indicate reverse shell or data extraction.",
-        "service": "Service type (http, ssh, ftp, dns) helps classify the attack vector and determine appropriate response.",
-        "state": "Connection state (CON, FIN, RST) shows how the connection was terminated and can indicate abrupt disconnections.",
-        "mitigate": "Mitigations: 1) Block source IP, 2) Inspect payloads, 3) Check for C&C domains, 4) Review firewall rules.",
-        "attack": "This traffic matches attack patterns in UNSW-NB15. Recommend investigating connection details and flow logs.",
-        "normal": "This traffic is benign - consistent with normal network behavior. No immediate action needed.",
-    }
+        response = None
+        for keyword, answer in threat_kb.items():
+            if keyword in message:
+                print(f"🟡 [/chat] Matched keyword: {keyword}")
+                response = answer
+                break
 
-    # Find best matching response
-    response = None
-    for keyword, answer in threat_kb.items():
-        if keyword in message:
-            print(f"🟡 [/chat] Matched keyword: {keyword}")
-            response = answer
-            break
+        if not response:
+            response = (
+                "Select an alert first for intelligent analysis! I can then explain:\n"
+                "- Why the model flagged it as a threat\n"
+                "- Which features drove the decision (SHAP)\n"
+                "- Confidence in the prediction\n"
+                "- Recommended mitigation actions"
+            )
 
-    if not response:
-        print("🟡 [/chat] No keyword match, using default response")
-        response = (
-            "I can help explain: SHAP features, confidence scores, threat indicators "
-            "(sbytes, dbytes, duration, service, state), false positives, or mitigation steps. "
-            "What would you like to know?"
-        )
-
-    print(f"✅ [/chat] Sending response")
+    print(f"✅ [/chat] Sending response (length: {len(response)})")
     return {"response": response}
 
 

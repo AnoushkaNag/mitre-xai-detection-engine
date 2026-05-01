@@ -7,9 +7,10 @@ import { useAuth } from '@/lib/authContext';
 interface TopBarProps {
   onUploadClick: () => void;
   onLogout: () => void;
+  isLoading?: boolean;
 }
 
-export default function TopBar({ onUploadClick, onLogout }: TopBarProps) {
+export default function TopBar({ onUploadClick, onLogout, isLoading = false }: TopBarProps) {
   const { userRole } = useAuth();
 
   const handleUploadClick = (e: React.MouseEvent) => {
@@ -70,13 +71,33 @@ export default function TopBar({ onUploadClick, onLogout }: TopBarProps) {
         {/* Upload Button */}
         <motion.button
           type="button"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: isLoading ? 1 : 1.05 }}
+          whileTap={{ scale: isLoading ? 1 : 0.95 }}
           onClick={handleUploadClick}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 rounded-lg text-white font-medium hover:shadow-lg hover:shadow-red-500/20 transition-all"
+          disabled={isLoading}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+            isLoading
+              ? 'bg-red-600/50 text-white/50 cursor-not-allowed'
+              : 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:shadow-lg hover:shadow-red-500/20 cursor-pointer'
+          }`}
         >
-          <Upload className="w-4 h-4" />
-          <span>Upload</span>
+          {isLoading ? (
+            <>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                className="w-4 h-4"
+              >
+                <Upload className="w-4 h-4" />
+              </motion.div>
+              <span>Uploading...</span>
+            </>
+          ) : (
+            <>
+              <Upload className="w-4 h-4" />
+              <span>Upload</span>
+            </>
+          )}
         </motion.button>
 
         {/* Logout Button */}
