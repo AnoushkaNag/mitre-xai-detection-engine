@@ -10,6 +10,7 @@ import UploadBox from '@/components/UploadBox';
 import LoginComponent from '@/components/Login';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/lib/api';
+import { motion } from 'framer-motion';
 
 interface Alert {
   id: string;
@@ -229,6 +230,53 @@ function Dashboard() {
         <div className="flex flex-1 overflow-hidden gap-4 p-4">
           {activePage === 'dashboard' ? (
             <>
+              {/* Investigation Flow Indicator */}
+              <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-10">
+                <motion.div 
+                  className="flex items-center gap-2 px-4 py-2 bg-dark-surface/80 border border-dark-border/50 rounded-lg backdrop-blur-sm"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <span className="text-xs font-semibold text-dark-text/70">Investigation:</span>
+                  {[
+                    { step: 1, label: 'Upload', active: alerts.length > 0 },
+                    { step: 2, label: 'Select', active: selectedAlert !== null },
+                    { step: 3, label: 'Analyze', active: selectedAlert !== null },
+                  ].map((item, idx) => (
+                    <motion.div
+                      key={idx}
+                      className="flex items-center gap-1"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.3 + idx * 0.1 }}
+                    >
+                      <motion.div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                          item.active
+                            ? 'bg-green-500/30 text-green-400 border border-green-500/50'
+                            : 'bg-dark-surface/50 text-dark-text/40 border border-dark-border/30'
+                        }`}
+                        animate={item.active ? { scale: [1, 1.15, 1] } : {}}
+                        transition={item.active ? { duration: 2, repeat: Infinity } : {}}
+                      >
+                        {item.step}
+                      </motion.div>
+                      {idx < 2 && (
+                        <motion.div
+                          className={`w-6 h-0.5 ${
+                            item.active ? 'bg-green-500/50' : 'bg-dark-border/30'
+                          }`}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: 1 }}
+                          transition={{ delay: 0.4 + idx * 0.1 }}
+                        />
+                      )}
+                    </motion.div>
+                  ))}
+                </motion.div>
+              </div>
+
               {/* Left: Alerts List */}
               <div className="flex-1 min-w-0">
                 {showUpload ? (
