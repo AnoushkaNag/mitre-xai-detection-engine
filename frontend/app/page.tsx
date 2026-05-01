@@ -42,6 +42,7 @@ function Dashboard() {
   const { logout } = useAuth();
   const [activePage, setActivePage] = useState<'dashboard' | 'threats' | 'analytics' | 'reports' | 'settings'>('dashboard');
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [showUpload, setShowUpload] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -120,6 +121,7 @@ function Dashboard() {
       setAlerts(convertedAlerts);
       setShowUpload(false);
       setSelectedAlert(null);
+      setExpandedAlertId(null);
       setError(null);  // Ensure error is cleared
       console.log('✅ [handleUpload] SUCCESS - Alerts updated, UI ready for interaction');
     } catch (error) {
@@ -128,6 +130,7 @@ function Dashboard() {
       setError(`Upload failed: ${errorMessage}`);
       setAlerts([]);  // Clear alerts on error
       setSelectedAlert(null);  // Clear selection on error
+      setExpandedAlertId(null);  // Clear expansion on error
       console.log('🔵 [handleUpload] UI state reset after error, buttons ready for interaction');
     } finally {
       setIsLoading(false);
@@ -188,6 +191,7 @@ function Dashboard() {
     console.log('🔴 [handleLogout] Clearing local state');
     setAlerts([]);
     setSelectedAlert(null);
+    setExpandedAlertId(null);
     setError(null);
     setShowUpload(false);
     setActivePage('dashboard');
@@ -196,10 +200,16 @@ function Dashboard() {
     console.log('✅ [handleLogout] Logout complete');
   };
 
+  const handleExpandAlert = (alertId: string) => {
+    console.log('🔷 [handleExpandAlert] Expanding alert:', alertId);
+    setExpandedAlertId(expandedAlertId === alertId ? null : alertId);
+  };
+
   const handleNavigate = (page: string) => {
     console.log('🟢 [Navigation] Navigating to:', page);
     setActivePage(page as any);
     setSelectedAlert(null);
+    setExpandedAlertId(null);
     console.log('🟢 [Navigation] Page changed, alert selection cleared');
   };
 
@@ -290,6 +300,8 @@ function Dashboard() {
                     alerts={alerts}
                     selectedAlert={selectedAlert}
                     onSelectAlert={setSelectedAlert}
+                    expandedAlertId={expandedAlertId}
+                    onExpandAlert={handleExpandAlert}
                   />
                 )}
               </div>

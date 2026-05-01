@@ -22,9 +22,17 @@ interface AlertsListProps {
   alerts: Alert[];
   selectedAlert: Alert | null;
   onSelectAlert: (alert: Alert) => void;
+  expandedAlertId?: string | null;
+  onExpandAlert?: (alertId: string) => void;
 }
 
-export default function AlertsList({ alerts, selectedAlert, onSelectAlert }: AlertsListProps) {
+export default function AlertsList({ 
+  alerts, 
+  selectedAlert, 
+  onSelectAlert,
+  expandedAlertId,
+  onExpandAlert
+}: AlertsListProps) {
   const handleSelectAlert = (alert: Alert) => {
     console.log('🔷 [AlertsList] Alert clicked:', alert.id, alert.title);
     console.log('🔷 [AlertsList] Alert details:', {
@@ -61,6 +69,9 @@ export default function AlertsList({ alerts, selectedAlert, onSelectAlert }: Ale
                   <AlertCard
                     alert={alert}
                     isSelected={selectedAlert?.id === alert.id}
+                    isExpanded={expandedAlertId === alert.id}
+                    onExpand={onExpandAlert}
+                    onSelectAlert={onSelectAlert}
                   />
                 </motion.div>
               ))}
