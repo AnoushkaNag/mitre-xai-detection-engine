@@ -138,27 +138,23 @@ def train_and_save_model():
 
 
 def load_model():
-    """Load trained model from disk"""
     global model, explainer, feature_names
 
-    if Path(MODEL_PATH).exists() and Path(EXPLAINER_PATH).exists():
+    if Path(MODEL_PATH).exists():
         print(f"📂 Loading model from {MODEL_PATH}")
         with open(MODEL_PATH, "rb") as f:
             data = pickle.load(f)
             model = data["model"]
             feature_names = data["feature_names"]
 
-        print(f"📂 Loading explainer from {EXPLAINER_PATH}")
-        with open(EXPLAINER_PATH, "rb") as f:
-            explainer = pickle.load(f)
-
-        print("✓ Model and explainer loaded successfully")
+        print("✅ Model loaded")
         return True
+
     else:
-        print("⚠ Model not found. Training new model...")
-        return train_and_save_model()
-
-
+        print("❌ No model found. Running in SAFE MODE (no predictions)")
+        model = None
+        feature_names = []
+        return False
 # ============================================================================
 # COLUMN MAPPING & NORMALIZATION
 # ============================================================================
