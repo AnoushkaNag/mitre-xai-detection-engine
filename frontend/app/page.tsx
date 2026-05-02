@@ -205,6 +205,13 @@ function Dashboard() {
     setExpandedAlertId(expandedAlertId === alertId ? null : alertId);
   };
 
+  const handleSelectAlert = (alert: Alert) => {
+    console.log('🔷 [handleSelectAlert] Alert selected:', alert.id);
+    setSelectedAlert(alert);
+    // Automatically expand the selected alert to show inline intelligence
+    setExpandedAlertId(expandedAlertId === alert.id ? null : alert.id);
+  };
+
   const handleNavigate = (page: string) => {
     console.log('🟢 [Navigation] Navigating to:', page);
     setActivePage(page as any);
@@ -299,9 +306,8 @@ function Dashboard() {
                   <AlertsList
                     alerts={alerts}
                     selectedAlert={selectedAlert}
-                    onSelectAlert={setSelectedAlert}
+                    onSelectAlert={handleSelectAlert}
                     expandedAlertId={expandedAlertId}
-                    onExpandAlert={handleExpandAlert}
                   />
                 )}
               </div>

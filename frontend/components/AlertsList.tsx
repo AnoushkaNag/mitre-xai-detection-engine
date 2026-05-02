@@ -69,8 +69,7 @@ export default function AlertsList({
                   <AlertCard
                     alert={alert}
                     isSelected={selectedAlert?.id === alert.id}
-                    isExpanded={expandedAlertId === alert.id}
-                    onExpand={onExpandAlert}
+                    expandedAlertId={expandedAlertId}
                     onSelectAlert={onSelectAlert}
                   />
                 </motion.div>
