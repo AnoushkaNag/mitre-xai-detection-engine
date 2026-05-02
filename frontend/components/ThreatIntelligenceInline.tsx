@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, BarChart3, Shield, MessageSquare, Send, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import SHAPBars from './SHAPBars';
 import AIResponseBlock from './AIResponseBlock';
 
@@ -119,31 +119,39 @@ export default function ThreatIntelligenceInline({ alert, colors }: ThreatIntell
   const [isLoading, setIsLoading] = useState(false);
   const [responseType, setResponseType] = useState<'auto' | 'explain' | 'why' | 'mitigate' | 'chat'>('auto');
 
+  // Reset all view/response state when the alert changes — prevents stale responses from a previous alert
+  useEffect(() => {
+    setExpandedView(null);
+    setAiResponse('');
+    setChatMessage('');
+    setIsLoading(false);
+  }, [alert.id]);
+
   const autoInsight = generateAutoInsight(alert);
 
-  // Fixed: Ensure state updates happen in correct order with proper closure
+  // Quick actions: Explain / Why Flagged / Mitigation
   const handleQuickAction = (action: 'explain' | 'why' | 'mitigate') => {
     console.log(`[TII] Button clicked: ${action}`);
-    
+
+    setAiResponse('');         // clear stale response so it doesn't flash while loading
     setIsLoading(true);
     setResponseType(action);
-    setExpandedView(action);  // Set expanded view immediately
-    
-    // Generate response
+    setExpandedView(action);
+
     setTimeout(() => {
       let query = '';
       if (action === 'explain') query = 'explain this threat';
       else if (action === 'why') query = 'why flagged as ' + alert.riskLevel;
       else query = 'mitigation actions';
 
-      const response = generateAIResponse(alert, query);
-      setAiResponse(response);
+      const generated = generateAIResponse(alert, query);
+      setAiResponse(generated);
       setIsLoading(false);
       console.log(`[TII] ${action} response ready`);
     }, 200);
   };
 
-  // Fixed: "Ask AI" button handler - ensure it opens chat interface
+  // "Ask AI" button — toggles the chat interface
   const handleAskAI = () => {
     console.log('[TII] Ask AI clicked');
     setExpandedView((currentView) => {
@@ -161,12 +169,15 @@ export default function ThreatIntelligenceInline({ alert, colors }: ThreatIntell
     if (!chatMessage.trim()) return;
 
     console.log('[TII] Chat message sent:', chatMessage);
+    setAiResponse('');         // clear stale response so it doesn't flash while loading
     setIsLoading(true);
     setResponseType('chat');
 
+    const submittedMessage = chatMessage; // capture before clearing input
+
     setTimeout(() => {
-      const response = generateAIResponse(alert, chatMessage);
-      setAiResponse(response);
+      const generated = generateAIResponse(alert, submittedMessage);
+      setAiResponse(generated);
       setChatMessage('');
       setIsLoading(false);
       console.log('[TII] Chat response ready');

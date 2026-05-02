@@ -22,7 +22,18 @@ from typing import Optional
 
 from auth import authenticate_user, create_access_token, get_current_user, CurrentUser, LoginRequest, TokenResponse
 from file_extraction import extract_from_file, validate_extracted_data
+from fastapi.middleware.cors import CORSMiddleware
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://mitre-xai-detection-engine.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # ============================================================================
 # SETUP & INITIALIZATION
 # ============================================================================

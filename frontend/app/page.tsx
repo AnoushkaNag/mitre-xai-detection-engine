@@ -55,7 +55,7 @@ function Dashboard() {
     setReportLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8001/report', {
+      const response = await fetch('https://mitre-xai-detection-engine.onrender.com/report', {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
         }

@@ -114,10 +114,15 @@ class ThreatDetectionAPI {
 
     // Create abort controller with timeout (30 seconds - backend should respond within 5s with SHAP disabled)
     const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-      console.error('❌ [API] Upload timeout - request took too long (>30s)');
-    }, 30000); // 30 seconds timeout (reduced from 120s)
+const timeout = setTimeout(() => controller.abort(), 120000); // 120 sec
+
+const response = await fetch(`${API_BASE_URL}/analyze`, {
+  method: "POST",
+  body: formData,
+  signal: controller.signal,
+});
+
+clearTimeout(timeout);
 
     try {
       console.log('🔵 [API] Sending request to /analyze');
