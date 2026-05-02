@@ -44,20 +44,23 @@ export default function AlertsList({
     onSelectAlert(alert);
   };
 
+  // Performance: Only render first 50 alerts to prevent lag
+  const displayedAlerts = alerts.slice(0, 50);
+
   return (
     <div className="h-full flex flex-col bg-dark-surface/30 backdrop-blur-xs border border-dark-border rounded-xl overflow-hidden">
       {/* Header */}
       <div className="p-6 border-b border-dark-border">
         <h3 className="text-lg font-semibold text-white">Detected Alerts</h3>
-        <p className="text-sm text-dark-text/60 mt-1">{alerts.length} total alerts</p>
+        <p className="text-sm text-dark-text/60 mt-1">{alerts.length} total alerts {alerts.length > 50 ? `(showing first 50)` : ''}</p>
       </div>
 
       {/* Alerts Scroll Area */}
       <div className="flex-1 overflow-y-auto">
-        {alerts.length > 0 ? (
+        {displayedAlerts.length > 0 ? (
           <AnimatePresence mode="popLayout">
             <div className="space-y-3 p-4">
-              {alerts.map((alert, index) => (
+              {displayedAlerts.map((alert, index) => (
                 <motion.div
                   key={alert.id}
                   initial={{ opacity: 0, y: 20 }}

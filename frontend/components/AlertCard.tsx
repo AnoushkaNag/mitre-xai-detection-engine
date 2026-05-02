@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react';
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import ThreatIntelligenceInline from './ThreatIntelligenceInline';
 
 interface Alert {
@@ -66,7 +66,7 @@ const riskIcons = {
   low: CheckCircle,
 };
 
-export default function AlertCard({ 
+function AlertCardComponent({ 
   alert,
   isSelected,
   expandedAlertId,
@@ -208,3 +208,6 @@ export default function AlertCard({
     </motion.div>
   );
 }
+
+// Memoize to prevent unnecessary re-renders when parent updates
+export default memo(AlertCardComponent);

@@ -121,11 +121,15 @@ export default function ThreatIntelligenceInline({ alert, colors }: ThreatIntell
 
   const autoInsight = generateAutoInsight(alert);
 
+  // Fixed: Ensure state updates happen in correct order with proper closure
   const handleQuickAction = (action: 'explain' | 'why' | 'mitigate') => {
+    console.log(`[TII] Button clicked: ${action}`);
+    
     setIsLoading(true);
     setResponseType(action);
+    setExpandedView(action);  // Set expanded view immediately
     
-    // Simulate async response
+    // Generate response
     setTimeout(() => {
       let query = '';
       if (action === 'explain') query = 'explain this threat';
@@ -135,23 +139,38 @@ export default function ThreatIntelligenceInline({ alert, colors }: ThreatIntell
       const response = generateAIResponse(alert, query);
       setAiResponse(response);
       setIsLoading(false);
-      setExpandedView(action);
-    }, 300);
+      console.log(`[TII] ${action} response ready`);
+    }, 200);
+  };
+
+  // Fixed: "Ask AI" button handler - ensure it opens chat interface
+  const handleAskAI = () => {
+    console.log('[TII] Ask AI clicked');
+    setExpandedView((currentView) => {
+      const nextView = currentView === 'chat' ? null : 'chat';
+      if (nextView === 'chat') {
+        setChatMessage('');
+        setAiResponse('');
+        setIsLoading(false);
+      }
+      return nextView;
+    });
   };
 
   const handleChatSubmit = () => {
     if (!chatMessage.trim()) return;
 
+    console.log('[TII] Chat message sent:', chatMessage);
     setIsLoading(true);
     setResponseType('chat');
-    setExpandedView('chat');
 
     setTimeout(() => {
       const response = generateAIResponse(alert, chatMessage);
       setAiResponse(response);
       setChatMessage('');
       setIsLoading(false);
-    }, 400);
+      console.log('[TII] Chat response ready');
+    }, 200);
   };
 
   return (
@@ -224,7 +243,7 @@ export default function ThreatIntelligenceInline({ alert, colors }: ThreatIntell
         </motion.button>
 
         <motion.button
-          onClick={() => setExpandedView(expandedView === 'chat' ? null : 'chat')}
+          onClick={() => handleAskAI()}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded border transition-all ${
@@ -239,45 +258,75 @@ export default function ThreatIntelligenceInline({ alert, colors }: ThreatIntell
       </div>
 
       {/* Expandable Response Sections */}
-      <AnimatePresence>
-        {expandedView === 'explain' && !isLoading && (
+      <AnimatePresence mode="wait">
+        {expandedView === 'explain' && (
           <>
-            <AIResponseBlock
-              response={aiResponse}
-              isLoading={isLoading}
-              title="⚡ Smart Explanation"
-            />
-            {alert.topFeatures && alert.topFeatures.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mt-2 p-3 rounded-lg bg-dark-background/40 border border-dark-border/30"
-              >
-                <div className="text-xs font-semibold text-dark-text/90 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                  <BarChart3 className="w-3.5 h-3.5" />
-                  Feature Importance (SHAP)
-                </div>
-                <SHAPBars features={alert.topFeatures} maxFeatures={5} />
-              </motion.div>
+            {isLoading ? (
+              <AIResponseBlock
+                response=""
+                isLoading={true}
+                title="⚡ Analyzing..."
+              />
+            ) : (
+              <>
+                <AIResponseBlock
+                  response={aiResponse}
+                  isLoading={false}
+                  title="⚡ Smart Explanation"
+                />
+                {alert.topFeatures && alert.topFeatures.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-2 p-3 rounded-lg bg-dark-background/40 border border-dark-border/30"
+                  >
+                    <div className="text-xs font-semibold text-dark-text/90 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      Feature Importance (SHAP)
+                    </div>
+                    <SHAPBars features={alert.topFeatures} maxFeatures={5} />
+                  </motion.div>
+                )}
+              </>
             )}
           </>
         )}
 
-        {expandedView === 'why' && !isLoading && (
-          <AIResponseBlock
-            response={aiResponse}
-            isLoading={isLoading}
-            title="📊 Why This Alert Triggered"
-          />
+        {expandedView === 'why' && (
+          <>
+            {isLoading ? (
+              <AIResponseBlock
+                response=""
+                isLoading={true}
+                title="📊 Analyzing..."
+              />
+            ) : (
+              <AIResponseBlock
+                response={aiResponse}
+                isLoading={false}
+                title="📊 Why This Alert Triggered"
+              />
+            )}
+          </>
         )}
 
-        {expandedView === 'mitigate' && !isLoading && (
-          <AIResponseBlock
-            response={aiResponse}
-            isLoading={isLoading}
-            title="🛡️ Recommended Actions"
-          />
+        {expandedView === 'mitigate' && (
+          <>
+            {isLoading ? (
+              <AIResponseBlock
+                response=""
+                isLoading={true}
+                title="🛡️ Generating Actions..."
+              />
+            ) : (
+              <AIResponseBlock
+                response={aiResponse}
+                isLoading={false}
+                title="🛡️ Recommended Actions"
+              />
+            )}
+          </>
         )}
 
         {expandedView === 'chat' && (
@@ -290,7 +339,7 @@ export default function ThreatIntelligenceInline({ alert, colors }: ThreatIntell
             {aiResponse && !isLoading && (
               <AIResponseBlock
                 response={aiResponse}
-                isLoading={isLoading}
+                isLoading={false}
                 title="💬 AI Response"
               />
             )}
