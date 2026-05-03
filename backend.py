@@ -31,22 +31,14 @@ from file_extraction import extract_from_file, validate_extracted_data
 app = FastAPI(title="ThreatXAI API", version="1.0.0")
 
 # Enable CORS for frontend
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://192.168.56.1:3000",
-        "http://192.168.56.1:3001",
-        "https://mitre-xai-detection-engine.vercel.app",
-    ],
+    allow_origin_regex=r"^https://mitre-xai-detection-engine(-[a-z0-9-]+)?\.vercel\.app$|^http://localhost:(3000|3001)$|^http://127\.0\.0\.1:(3000|3001)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # ============================================================================
 # PERFORMANCE CONFIGURATION
 # ============================================================================
