@@ -2,7 +2,7 @@
  * API utilities with authentication support
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export interface LoginResponse {
   access_token: string;
