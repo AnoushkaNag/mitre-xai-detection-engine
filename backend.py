@@ -22,18 +22,8 @@ from typing import Optional
 
 from auth import authenticate_user, create_access_token, get_current_user, CurrentUser, LoginRequest, TokenResponse
 from file_extraction import extract_from_file, validate_extracted_data
-from fastapi.middleware.cors import CORSMiddleware
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://mitre-xai-detection-engine.vercel.app"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 # ============================================================================
 # SETUP & INITIALIZATION
 # ============================================================================
@@ -50,6 +40,7 @@ app.add_middleware(
         "http://127.0.0.1:3001",
         "http://192.168.56.1:3000",
         "http://192.168.56.1:3001",
+        "https://mitre-xai-detection-engine.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -419,12 +410,14 @@ async def analyze(
         print("🔵 [/analyze] Preprocessing data...")
         X = preprocess_data(df)
         print(f"🔵 [/analyze] Data preprocessed: {X.shape}")
-
-        # Predict
-        print("🔵 [/analyze] Running predictions...")
-        predictions = model.predict(X)
-        probabilities = model.predict_proba(X)
-        print(f"🔵 [/analyze] Predictions: {predictions}")
+        
+        if model is None:
+            print("⚠️ Model not loaded, using dummy predictions")
+            predictions = np.zeros(len(X))
+            probabilities = np.array([[1.0, 0.0]] * len(X))
+        else:
+            predictions = model.predict(X)
+            probabilities = model.predict_proba(X)
 
         # Get SHAP values (optional for performance)
         if ENABLE_SHAP:
@@ -943,13 +936,11 @@ async def generate_report(authorization: Optional[str] = Header(None)):
 
 @app.on_event("startup")
 async def startup_event():
-    """Load model on startup"""
-    print("\n" + "="*70)
     print("🚀 Starting ThreatXAI Backend...")
-    print("="*70)
-    load_model()
-    print("✅ Backend ready for requests")
-    print("="*70 + "\n")
+
+    if not load_model():
+        print("⚠️ No model found. Running in demo mode without training.")
+    print("✅ Backend ready")
 
 
 if __name__ == "__main__":
@@ -960,4 +951,5 @@ if __name__ == "__main__":
     print("📊 API Docs: http://localhost:8001/docs")
     print("🔗 ReDoc: http://localhost:8001/redoc")
 
-    uvicorn.run(app, host="0.0.0.0", port=8001, reload=False)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
